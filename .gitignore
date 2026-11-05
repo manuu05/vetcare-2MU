@@ -1,0 +1,31 @@
+# Maven build directory
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+
+# Java compiled classes & packages
+*.class
+*.jar
+*.war
+*.ear
+
+# SQLite local runtime databases
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# IDE configuration files (Eclipse, IntelliJ, VS Code)
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+
+# OS files
+.DS_Store
+Thumbs.db
