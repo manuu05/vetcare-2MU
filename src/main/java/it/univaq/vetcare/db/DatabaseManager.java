@@ -11,10 +11,16 @@ import java.sql.Statement;
 import java.util.stream.Collectors;
 
 /**
- * TK-01: Gestore centrale della connessione al DBMS relazionale,
- * migrazione DDL iniziale e gestione delle transazioni con rollback.
+ * TK-01 & Sprint 2 Migration: Gestore centrale della connessione al DBMS relazionale,
+ * esecuzione sequenziale degli script di migrazione DDL (schema.sql + schema_sprint2.sql)
+ * e gestione delle transazioni atomiche con rollback.
  */
 public class DatabaseManager {
+
+    private static final String[] MIGRATION_SCRIPTS = {
+            "schema.sql",
+            "schema_sprint2.sql"
+    };
 
     private final String jdbcUrl;
 
@@ -43,31 +49,41 @@ public class DatabaseManager {
     }
 
     /**
-     * Esegue lo script di migrazione DDL iniziale (schema.sql).
+     * Esegue gli script di migrazione DDL presenti nel classpath (Sprint 1 + Sprint 2).
      */
     public void initializeSchema() {
-        try (Connection conn = getConnection();
-             InputStream is = getClass().getClassLoader().getResourceAsStream("schema.sql")) {
-            if (is == null) {
-                throw new IllegalStateException("File schema.sql non trovato nel classpath.");
-            }
-            String sqlScript;
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
-                sqlScript = reader.lines()
-                        .filter(line -> !line.trim().startsWith("--"))
-                        .collect(Collectors.joining("\n"));
-            }
-            String[] statements = sqlScript.split(";");
-            try (Statement stmt = conn.createStatement()) {
-                for (String statement : statements) {
-                    String trimmed = statement.trim();
-                    if (!trimmed.isEmpty()) {
-                        stmt.execute(trimmed);
+        try (Connection conn = getConnection()) {
+            for (String resourceName : MIGRATION_SCRIPTS) {
+                try (InputStream is = getClass().getClassLoader().getResourceAsStream(resourceName)) {
+                    if (is == null) {
+                        if ("schema.sql".equals(resourceName)) {
+                            throw new IllegalStateException("File schema.sql non trovato nel classpath.");
+                        }
+                        continue;
                     }
+                    executeSqlStream(conn, is);
                 }
             }
         } catch (Exception e) {
             throw new RuntimeException("Errore durante l'inizializzazione dello schema DB: " + e.getMessage(), e);
+        }
+    }
+
+    private void executeSqlStream(Connection conn, InputStream is) throws Exception {
+        String sqlScript;
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
+            sqlScript = reader.lines()
+                    .filter(line -> !line.trim().startsWith("--"))
+                    .collect(Collectors.joining("\n"));
+        }
+        String[] statements = sqlScript.split(";");
+        try (Statement stmt = conn.createStatement()) {
+            for (String statement : statements) {
+                String trimmed = statement.trim();
+                if (!trimmed.isEmpty()) {
+                    stmt.execute(trimmed);
+                }
+            }
         }
     }
 
