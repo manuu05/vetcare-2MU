@@ -9,8 +9,9 @@ import java.time.LocalDateTime;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * SP-01 (Sub-Task SP01-2): Test del prototipo Spike per rilevamento collisioni orarie
- * su Tavolo Operatorio unico e 3 Veterinari con benchmark < 200ms.
+ * SP-01 & RF-01: Test del prototipo Spike aggiornati dopo il refactoring:
+ * verifica la gestione pulita tramite blocco try/catch separando l'eccezione
+ * dal metodo di rescheduling deterministico (< 200ms).
  */
 public class OperatingTableSchedulerSpikeTest {
 
@@ -24,54 +25,60 @@ public class OperatingTableSchedulerSpikeTest {
     }
 
     @Test
-    public void testConflictBetweenSurgeryAndOrdinaryVisitOnSameVet() {
-        // Dato il Veterinario #1 impegnato in chirurgia dalle 09:00 alle 10:00
+    public void testConflictBetweenSurgeryAndOrdinaryVisitHandledWithTryCatch() {
         AppointmentSlot surgery = new AppointmentSlot(
                 "CHIR-01", 1, "Rex", baseTime, baseTime.plusHours(1), true
         );
         scheduler.scheduleSlot(surgery);
 
-        // Quando si simula la sovrapposizione con una visita ordinaria dalle 09:30 alle 10:00 sullo stesso Vet #1
         AppointmentSlot overlappingVisit = new AppointmentSlot(
                 "VIS-01", 1, "Luna", baseTime.plusMinutes(30), baseTime.plusHours(1), false
         );
 
-        // Allora il motore solleva ConcurrencyConflictException e propone una riallocazione entro 200ms
-        ConcurrencyConflictException ex = assertThrows(ConcurrencyConflictException.class, () -> {
+        long startNs = System.nanoTime();
+        AppointmentSlot proposal = null;
+        try {
             scheduler.scheduleSlot(overlappingVisit);
-        });
+            fail("Doveva essere sollevata ConcurrencyConflictException");
+        } catch (ConcurrencyConflictException ex) {
+            assertEquals("CHIR-01", ex.getConflictingSlot().getSlotId());
+            proposal = scheduler.computeDeterministicReallocation(overlappingVisit);
+        }
+        long elapsedMs = (System.nanoTime() - startNs) / 1_000_000L;
 
-        assertNotNull(ex.getProposedReallocation(), "Deve essere proposta una riallocazione deterministica");
-        assertTrue(ex.getResolutionTimeMs() < 200, "Il tempo di risoluzione deve essere inferiore a 200ms");
-        assertEquals(2, ex.getProposedReallocation().getVetId(),
+        assertNotNull(proposal, "Il blocco catch deve ottenere una proposta di riallocazione valida");
+        assertTrue(elapsedMs < 200, "Rilevamento e riallocazione entro 200ms");
+        assertEquals(2, proposal.getVetId(),
                 "La visita ordinaria viene riallocata sul Veterinario #2 libero nello stesso orario");
     }
 
     @Test
-    public void testSingleOperatingTableExclusiveLockAcrossDifferentVets() {
-        // Dato il Tavolo Operatorio unico occupato dal Veterinario #1 (09:00 - 10:30)
+    public void testSingleOperatingTableExclusiveLockHandledWithTryCatch() {
         AppointmentSlot surgeryVet1 = new AppointmentSlot(
                 "CHIR-01", 1, "Rex", baseTime, baseTime.plusMinutes(90), true
         );
         scheduler.scheduleSlot(surgeryVet1);
 
-        // Quando il Veterinario #2 tenta di prenotare il Tavolo Operatorio unico alle 10:00
         AppointmentSlot surgeryVet2 = new AppointmentSlot(
                 "CHIR-02", 2, "Milo", baseTime.plusMinutes(60), baseTime.plusMinutes(120), true
         );
 
-        ConcurrencyConflictException ex = assertThrows(ConcurrencyConflictException.class, () -> {
+        AppointmentSlot proposal = null;
+        try {
             scheduler.scheduleSlot(surgeryVet2);
-        });
+            fail("Doveva essere sollevata ConcurrencyConflictException sul tavolo operatorio unico");
+        } catch (ConcurrencyConflictException ex) {
+            assertEquals("CHIR-01", ex.getConflictingSlot().getSlotId());
+            proposal = scheduler.computeDeterministicReallocation(surgeryVet2);
+        }
 
-        assertEquals(baseTime.plusMinutes(90), ex.getProposedReallocation().getStartTime(),
-                "Il secondo intervento chirurgico deve essere posticipato alle 10:30 (fine del primo)");
-        assertTrue(ex.getResolutionTimeMs() < 200, "Risoluzione garantita entro 200ms");
+        assertNotNull(proposal);
+        assertEquals(baseTime.plusMinutes(90), proposal.getStartTime(),
+                "Il secondo intervento chirurgico viene posticipato alle 10:30 (fine del primo)");
     }
 
     @RepeatedTest(5)
-    public void testRepeatedBenchmarkCollisionDetectionUnder200ms() {
-        // Test ripetuto (@RepeatedTest come da slide JUnit) per verificare stabilità e performance < 200ms
+    public void testRepeatedBenchmarkCollisionAndTryCatchReschedulingUnder200ms() {
         scheduler.scheduleSlot(new AppointmentSlot("S1", 1, "Paziente1", baseTime, baseTime.plusHours(1), true));
         scheduler.scheduleSlot(new AppointmentSlot("S2", 2, "Paziente2", baseTime, baseTime.plusHours(1), false));
 
@@ -79,9 +86,15 @@ public class OperatingTableSchedulerSpikeTest {
                 "S3", 1, "PazienteUrgente", baseTime.plusMinutes(15), baseTime.plusMinutes(45), true
         );
 
-        ConcurrencyConflictException ex = assertThrows(ConcurrencyConflictException.class, () -> {
+        long t0 = System.nanoTime();
+        try {
             scheduler.scheduleSlot(colliding);
-        });
-        assertTrue(ex.getResolutionTimeMs() < 200, "Benchmark collisione deve restare < 200ms in ogni esecuzione");
+            fail("Atteso conflitto");
+        } catch (ConcurrencyConflictException ex) {
+            AppointmentSlot reallocated = scheduler.computeDeterministicReallocation(colliding);
+            assertNotNull(reallocated);
+        }
+        long elapsedMs = (System.nanoTime() - t0) / 1_000_000L;
+        assertTrue(elapsedMs < 200, "Benchmark collisione + rescheduling nel catch deve restare < 200ms");
     }
 }
