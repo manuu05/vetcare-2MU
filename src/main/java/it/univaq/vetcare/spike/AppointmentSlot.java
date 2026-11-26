@@ -3,8 +3,10 @@ package it.univaq.vetcare.spike;
 import java.time.Duration;
 import java.time.LocalDateTime;
 
-/*SP-01: Modello matematico intervallare di uno slot in agenda
-(visita ordinaria o intervento chirurgico sul tavolo operatorio unico).*/
+/**
+ * SP-01 & RF-01: Modello matematico intervallare di uno slot in agenda
+ * (visita ordinaria o intervento chirurgico sul tavolo operatorio unico).
+ */
 public class AppointmentSlot {
 
     private final String slotId;
@@ -15,8 +17,8 @@ public class AppointmentSlot {
     private final boolean requiresOperatingTable;
 
     public AppointmentSlot(String slotId, int vetId, String patientName,
-            LocalDateTime startTime, LocalDateTime endTime,
-            boolean requiresOperatingTable) {
+                           LocalDateTime startTime, LocalDateTime endTime,
+                           boolean requiresOperatingTable) {
         if (vetId < 1 || vetId > 3) {
             throw new IllegalArgumentException("L'ambulatorio VetCare dispone di 3 veterinari (ID 1..3).");
         }
@@ -32,12 +34,27 @@ public class AppointmentSlot {
         this.requiresOperatingTable = requiresOperatingTable;
     }
 
-    /*
-     * Verifica la sovrapposizione matematica tra due intervalli semi-aperti [start,
-     * end).
+    /**
+     * Verifica la sovrapposizione matematica tra due intervalli semi-aperti [start, end).
      */
     public boolean overlapsWith(AppointmentSlot other) {
         return this.startTime.isBefore(other.endTime) && other.startTime.isBefore(this.endTime);
+    }
+
+    /**
+     * RF-01 (Extract Method): Crea una copia riallocata dello slot mantenendo durata,
+     * paziente e requisito sala operatoria, evitando costruttori ripetuti.
+     */
+    public AppointmentSlot rescheduleTo(int targetVetId, LocalDateTime newStartTime) {
+        String newId = slotId.endsWith("-REALLOC") ? slotId : slotId + "-REALLOC";
+        return new AppointmentSlot(
+                newId,
+                targetVetId,
+                this.patientName,
+                newStartTime,
+                newStartTime.plus(getDuration()),
+                this.requiresOperatingTable
+        );
     }
 
     public Duration getDuration() {
