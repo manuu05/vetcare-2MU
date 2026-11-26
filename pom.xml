@@ -5,11 +5,11 @@
 
     <groupId>it.univaq.vetcare</groupId>
     <artifactId>vetcare-app</artifactId>
-    <version>1.0.0-SPRINT1</version>
+    <version>2.0.0-SPRINT2</version>
     <packaging>jar</packaging>
 
     <name>VetCare - Gestione Ambulatorio Veterinario (Gruppo 2MU)</name>
-    <description>Progetto Metodi di Sviluppo Agile - Sprint 1 (Team Duff Tech - Gruppo 2MU)</description>
+    <description>Progetto Metodi di Sviluppo Agile - Sprint 2 (Team Duff Tech - Gruppo 2MU)</description>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -52,7 +52,6 @@
 
     <build>
         <plugins>
-            <!-- Plugin di compilazione Java -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -64,14 +63,12 @@
                 </configuration>
             </plugin>
 
-            <!-- Plugin Surefire per eseguire i test JUnit 5 con "mvn test" -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.2.5</version>
             </plugin>
 
-            <!-- Plugin per avviare l'applicazione Desktop con "mvn exec:java" -->
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
